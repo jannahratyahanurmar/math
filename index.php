@@ -1,24 +1,41 @@
 <?php
+/**
+ * Math Quiz Application
+ * A fun, accessible math quiz for practicing addition
+ * 
+ * @author Mehran
+ */
+
 session_start();
 
-// Database connection
-$host = 'localhost';
-$dbname = 'math_quiz';
-$username = 'root'; // Change as needed
-$password = 'Tuhin2@@'; // Change as needed
+// Load configuration
+$configFile = __DIR__ . '/config.php';
+if (!file_exists($configFile)) {
+    die('Configuration file not found. Please copy config.example.php to config.php and update credentials.');
+}
+$config = require $configFile;
 
+// Database connection
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $dsn = "mysql:host={$config['host']};dbname={$config['dbname']};charset={$config['charset']}";
+    $pdo = new PDO($dsn, $config['username'], $config['password'], $config['options']);
 } catch(PDOException $e) {
     error_log("Database connection failed: " . $e->getMessage());
     die("Unable to connect to database. Please contact support.");
 }
 
+// Constants
+define('QUESTION_TIME_LIMIT', 15); // seconds per question
+define('QUIZ_TIME_LIMIT', 20 * 60); // 20 minutes total
+define('RATE_LIMIT_SAVES', 5); // max saves per session
+define('MAX_NAME_LENGTH', 50);
+
 // Initialize session variables
 if (!isset($_SESSION['correct'])) {
     $_SESSION['correct'] = 0;
     $_SESSION['total'] = 0;
+    $_SESSION['quiz_start_time'] = time(); // Server-side timer
+    $_SESSION['save_count'] = 0; // Rate limiting
 }
 
 // Generate CSRF token
@@ -26,10 +43,40 @@ if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+/**
+ * Validate CSRF token
+ */
+function validateCsrfToken(): bool {
+    return isset($_POST['csrf_token']) && 
+           hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']);
+}
+
+/**
+ * Check if quiz time has expired (server-side)
+ */
+function isQuizTimeExpired(): bool {
+    if (!isset($_SESSION['quiz_start_time'])) {
+        return false;
+    }
+    return (time() - $_SESSION['quiz_start_time']) >= QUIZ_TIME_LIMIT;
+}
+
+/**
+ * Sanitize user name for display only (not storage)
+ */
+function sanitizeForDisplay(string $text): string {
+    return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+}
+
+// Check if quiz time expired (server-side validation)
+if (isQuizTimeExpired() && !isset($_GET['show_results'])) {
+    header('Location: index.php?show_results=1');
+    exit;
+}
+
 // Handle answer submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
-    // Verify CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken()) {
         die('Invalid request. Please refresh the page and try again.');
     }
     
@@ -39,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     
     if ($correct_answer !== false && $user_answer !== false) {
         $_SESSION['total']++;
-        if ($user_answer == $correct_answer) {
+        if ($user_answer === $correct_answer) {
             $_SESSION['correct']++;
         }
     }
@@ -47,34 +94,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
 
 // Save score to database
 if (isset($_POST['save_score']) && isset($_POST['user_name'])) {
-    // Verify CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!validateCsrfToken()) {
         die('Invalid request. Please refresh the page and try again.');
     }
     
-    // Validate and sanitize user name
-    $user_name = trim($_POST['user_name']);
-    if (strlen($user_name) > 0 && strlen($user_name) <= 50) {
-        $user_name = htmlspecialchars($user_name, ENT_QUOTES, 'UTF-8');
-        $correct = $_SESSION['correct'];
-        $total = $_SESSION['total'];
-        $percentage = ($total > 0) ? ($correct / $total) * 100 : 0;
+    // Rate limiting check
+    if ($_SESSION['save_count'] >= RATE_LIMIT_SAVES) {
+        $error_message = "Too many save attempts. Please start a new quiz.";
+    } else {
+        // Validate and sanitize user name
+        $user_name = trim($_POST['user_name']);
         
-        try {
-            $stmt = $pdo->prepare("INSERT INTO quiz_scores (user_name, correct_answers, total_questions, score_percentage) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$user_name, $correct, $total, $percentage]);
+        if (strlen($user_name) === 0) {
+            $error_message = "Please enter your name.";
+        } elseif (strlen($user_name) > MAX_NAME_LENGTH) {
+            $error_message = "Name is too long. Maximum " . MAX_NAME_LENGTH . " characters.";
+        } elseif ($_SESSION['total'] === 0) {
+            $error_message = "No questions answered yet.";
+        } else {
+            $correct = $_SESSION['correct'];
+            $total = $_SESSION['total'];
+            $percentage = ($correct / $total) * 100;
             
-            // Reset session
-            $_SESSION['correct'] = 0;
-            $_SESSION['total'] = 0;
-            
-            // Redirect to results with success message
-            $_SESSION['save_success'] = true;
-            header('Location: index.php?show_results=1');
-            exit;
-        } catch(PDOException $e) {
-            error_log("Error saving score: " . $e->getMessage());
-            $error_message = "Failed to save score. Please try again.";
+            try {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO quiz_scores (user_name, correct_answers, total_questions, score_percentage) 
+                     VALUES (:name, :correct, :total, :percentage)"
+                );
+                $stmt->execute([
+                    ':name' => $user_name, // Store raw, display with htmlspecialchars
+                    ':correct' => $correct,
+                    ':total' => $total,
+                    ':percentage' => $percentage
+                ]);
+                
+                $_SESSION['save_count']++;
+                
+                // Reset score but keep session
+                $_SESSION['correct'] = 0;
+                $_SESSION['total'] = 0;
+                $_SESSION['quiz_start_time'] = time();
+                
+                $_SESSION['save_success'] = true;
+                header('Location: index.php?show_results=1');
+                exit;
+            } catch(PDOException $e) {
+                error_log("Error saving score: " . $e->getMessage());
+                $error_message = "Failed to save score. Please try again.";
+            }
         }
     }
 }
@@ -83,7 +150,9 @@ if (isset($_POST['save_score']) && isset($_POST['user_name'])) {
 if (isset($_GET['restart'])) {
     $_SESSION['correct'] = 0;
     $_SESSION['total'] = 0;
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); // Regenerate CSRF token
+    $_SESSION['quiz_start_time'] = time();
+    $_SESSION['save_count'] = 0; // Reset rate limit on new quiz
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     header('Location: index.php');
     exit;
 }
@@ -91,17 +160,30 @@ if (isset($_GET['restart'])) {
 // Check if showing results
 $show_results = isset($_GET['show_results']);
 
+// Generate new question (only if not showing results)
+$num1 = 0;
+$num2 = 0;
+$correct_answer = 0;
+
 if (!$show_results) {
-    // Generate new question
-    $num1 = rand(1, 9);
-    $num2 = rand(1, 9);
+    $num1 = random_int(1, 9); // More secure than rand()
+    $num2 = random_int(1, 9);
     $correct_answer = $num1 + $num2;
 }
 
+// Calculate remaining quiz time (server-side)
+$elapsed_time = time() - ($_SESSION['quiz_start_time'] ?? time());
+$remaining_time = max(0, QUIZ_TIME_LIMIT - $elapsed_time);
+
 // Get top scores for leaderboard
 try {
-    $stmt = $pdo->query("SELECT user_name, correct_answers, total_questions, score_percentage, created_at FROM quiz_scores ORDER BY score_percentage DESC, correct_answers DESC LIMIT 10");
-    $top_scores = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->query(
+        "SELECT user_name, correct_answers, total_questions, score_percentage, created_at 
+         FROM quiz_scores 
+         ORDER BY score_percentage DESC, correct_answers DESC 
+         LIMIT 10"
+    );
+    $top_scores = $stmt->fetchAll();
 } catch(PDOException $e) {
     error_log("Error fetching leaderboard: " . $e->getMessage());
     $top_scores = [];
@@ -416,7 +498,7 @@ try {
                             ?>
                             <tr>
                                 <td><?php echo $rank++; ?></td>
-                                <td><?php echo htmlspecialchars($score['user_name']); ?></td>
+                                <td><?php echo sanitizeForDisplay($score['user_name']); ?></td>
                                 <td><?php echo $score['correct_answers'] . ' of ' . $score['total_questions']; ?></td>
                                 <td><?php echo number_format($score['score_percentage'], 1) . '%'; ?></td>
                             </tr>

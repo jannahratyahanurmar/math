@@ -38,14 +38,10 @@ A fast-paced, accessible math quiz application for practicing addition. Features
    Or import `math_quiz.sql` via phpMyAdmin.
 
 3. **Configure database credentials**
-   
-   Edit `index.php` and update these lines:
-   ```php
-   $host = 'localhost';
-   $dbname = 'math_quiz';
-   $username = 'root';
-   $password = 'your_password';
+   ```bash
+   cp config.example.php config.php
    ```
+   Then edit `config.php` and set your database password.
 
 4. **Start your server and visit**
    ```
@@ -56,8 +52,11 @@ A fast-paced, accessible math quiz application for practicing addition. Features
 
 ```
 math-quiz/
-├── index.php          # Main application (frontend + backend)
-├── math_quiz.sql      # Database schema
+├── index.php            # Main application (frontend + backend)
+├── config.php           # Your database credentials (gitignored)
+├── config.example.php   # Template config file
+├── math_quiz.sql        # Database schema
+├── .gitignore           # Git ignore rules
 └── README.md
 ```
 
