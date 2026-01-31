@@ -110,4 +110,8 @@ Contributions are welcome! Feel free to open issues or submit pull requests.
 
 ---
 
-Made with ❤️ for math learners everywhere
+## 👨‍💻 About
+
+Made with ❤️ by **Mehran** for **Mehran** — a 10-year-old math whiz who's also a 🎮 Roblox enthusiast and 🔷 Geometry Dash pro!
+
+*When he's not crushing math problems, he's crushing demons in GD!* 🏆
