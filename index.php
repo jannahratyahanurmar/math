@@ -113,6 +113,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Practice addition with timed math quizzes. Track your score and compete on the leaderboard.">
     <title>Math Quiz - Addition Practice</title>
     <style>
         * {
@@ -274,61 +275,138 @@ try {
             background: #28a745;
         }
         
+        /* Accessibility Improvements */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: #667eea;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 0 0 5px 0;
+            z-index: 100;
+            transition: top 0.3s;
+        }
+        
+        .skip-link:focus {
+            top: 0;
+        }
+        
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        
+        /* Enhanced focus indicators */
+        button:focus,
+        input:focus {
+            outline: 3px solid #764ba2;
+            outline-offset: 2px;
+        }
+        
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            .container {
+                border: 3px solid #000;
+            }
+            button {
+                border: 2px solid #000;
+            }
+        }
+        
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            button {
+                transition: none;
+            }
+            button:hover {
+                transform: none;
+            }
+        }
+        
         .restart-btn:hover {
             background: #218838;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- Skip Navigation Link -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <!-- Live region for screen reader announcements -->
+    <div id="sr-announcements" aria-live="polite" aria-atomic="true" class="visually-hidden"></div>
+    
+    <main id="main-content" class="container" role="main">
         <h1>🧮 Math Quiz</h1>
         
         <?php if ($show_results): ?>
             <!-- RESULTS PAGE -->
-            <div class="results">
-                <h2>🎉 Quiz Complete!</h2>
+            <section class="results" aria-labelledby="results-heading">
+                <h2 id="results-heading"><span aria-hidden="true">🎉</span> Quiz Complete!</h2>
                 
-                <div class="result-card">
+                <div class="result-card" role="region" aria-label="Your final score">
                     <h3>Your Final Score:</h3>
-                    <p style="font-size: 2em; color: #667eea; margin: 10px 0;">
-                        <?php echo $_SESSION['correct']; ?> / <?php echo $_SESSION['total']; ?>
+                    <p style="font-size: 2em; color: #667eea; margin: 10px 0;" aria-label="Score">
+                        <?php echo $_SESSION['correct']; ?> correct out of <?php echo $_SESSION['total']; ?> questions
                     </p>
-                    <p style="font-size: 1.5em; color: #28a745;">
+                    <p style="font-size: 1.5em; color: #28a745;" aria-label="Percentage">
                         <?php 
                         $percentage = $_SESSION['total'] > 0 ? ($_SESSION['correct'] / $_SESSION['total']) * 100 : 0;
-                        echo number_format($percentage, 1) . '%';
+                        echo number_format($percentage, 1) . '% accuracy';
                         ?>
                     </p>
                 </div>
                 
-                <div class="save-section">
+                <div class="save-section" role="region" aria-label="Save your score">
                     <?php if (isset($_SESSION['save_success'])): ?>
-                        <p style="color: #28a745; font-size: 1.2em; margin: 10px 0;">✅ Score saved successfully!</p>
+                        <p style="color: #28a745; font-size: 1.2em; margin: 10px 0;" role="status">
+                            <span aria-hidden="true">✅</span> Score saved successfully!
+                        </p>
                         <?php unset($_SESSION['save_success']); ?>
                     <?php elseif ($_SESSION['total'] > 0): ?>
-                        <h3>Save Your Score</h3>
+                        <h3 id="save-heading">Save Your Score</h3>
                         <?php if (isset($error_message)): ?>
-                            <p style="color: #e74c3c; margin: 10px 0;"><?php echo $error_message; ?></p>
+                            <p style="color: #e74c3c; margin: 10px 0;" role="alert"><?php echo $error_message; ?></p>
                         <?php endif; ?>
-                        <form method="POST" action="index.php?show_results=1">
-                            <input type="text" name="user_name" placeholder="Enter your name (e.g., Mehran)" maxlength="50" required>
+                        <form method="POST" action="index.php?show_results=1" aria-labelledby="save-heading">
+                            <label for="user_name" class="visually-hidden">Your name</label>
+                            <input type="text" 
+                                   name="user_name" 
+                                   id="user_name"
+                                   placeholder="Enter your name (e.g., Mehran)" 
+                                   maxlength="50" 
+                                   required
+                                   aria-required="true">
                             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                            <button type="submit" name="save_score">💾 Save Score</button>
+                            <button type="submit" name="save_score">
+                                <span aria-hidden="true">💾</span> Save Score
+                            </button>
                         </form>
                     <?php endif; ?>
                 </div>
                 
-                <button onclick="sessionStorage.removeItem('quizStartTime'); location.href='?restart=1';" class="restart-btn">🔄 Start New Quiz</button>
+                <button onclick="sessionStorage.removeItem('quizStartTime'); location.href='?restart=1';" class="restart-btn">
+                    <span aria-hidden="true">🔄</span> Start New Quiz
+                </button>
                 
-                <div class="leaderboard">
-                    <h2>🏆 Top 10 Scores</h2>
-                    <table>
+                <nav class="leaderboard" aria-labelledby="leaderboard-heading">
+                    <h2 id="leaderboard-heading"><span aria-hidden="true">🏆</span> Top 10 Scores</h2>
+                    <table role="table" aria-describedby="leaderboard-heading">
+                        <caption class="visually-hidden">Leaderboard showing top 10 quiz scores</caption>
                         <thead>
                             <tr>
-                                <th>Rank</th>
-                                <th>Name</th>
-                                <th>Score</th>
-                                <th>Percentage</th>
+                                <th scope="col">Rank</th>
+                                <th scope="col">Name</th>
+                                <th scope="col">Score</th>
+                                <th scope="col">Percentage</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -339,40 +417,65 @@ try {
                             <tr>
                                 <td><?php echo $rank++; ?></td>
                                 <td><?php echo htmlspecialchars($score['user_name']); ?></td>
-                                <td><?php echo $score['correct_answers'] . '/' . $score['total_questions']; ?></td>
+                                <td><?php echo $score['correct_answers'] . ' of ' . $score['total_questions']; ?></td>
                                 <td><?php echo number_format($score['score_percentage'], 1) . '%'; ?></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
-                </div>
-            </div>
+                </nav>
+            </section>
             
         <?php else: ?>
             <!-- QUIZ PAGE -->
-            <div id="totalTimer" class="total-timer">
-                Total Time: <span id="totalTimeDisplay">20:00</span>
-            </div>
-            
-            <div class="score">
-                Score: <?php echo $_SESSION['correct']; ?> / <?php echo $_SESSION['total']; ?>
-            </div>
-            
-            <div class="timer" id="timer">Time: 15s</div>
-            
-            <form method="POST" id="quizForm">
-                <div class="question">
-                    <?php echo "$num1 + $num2 = "; ?>
-                    <input type="number" name="answer" id="answerInput" autofocus required>
+            <section aria-labelledby="quiz-heading">
+                <h2 id="quiz-heading" class="visually-hidden">Math Quiz Question</h2>
+                
+                <div id="totalTimer" class="total-timer" role="timer" aria-label="Total quiz time remaining">
+                    <span class="visually-hidden">Total Time Remaining:</span>
+                    <span id="totalTimeDisplay" aria-live="off">20:00</span>
                 </div>
                 
-                <input type="hidden" name="correct_answer" value="<?php echo $correct_answer; ?>">
-                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                <div class="score" role="status" aria-label="Current score">
+                    <span class="visually-hidden">Current Score:</span>
+                    <?php echo $_SESSION['correct']; ?> correct out of <?php echo $_SESSION['total']; ?> questions
+                </div>
                 
-                <p class="auto-submit-notice">⏱️ Auto-submits when timer reaches 0</p>
+                <div class="timer" id="timer" role="timer" aria-live="assertive" aria-label="Question time remaining">
+                    <span class="visually-hidden">Time remaining for this question:</span>
+                    <span id="timerValue">15</span> seconds
+                </div>
+            
+            <form method="POST" id="quizForm" aria-describedby="form-instructions">
+                <fieldset style="border: none; padding: 0; margin: 0;">
+                    <legend class="visually-hidden">Answer the math question</legend>
+                    
+                    <div class="question">
+                        <label for="answerInput">
+                            <span aria-hidden="true"><?php echo "$num1 + $num2 = "; ?></span>
+                            <span class="visually-hidden">What is <?php echo $num1; ?> plus <?php echo $num2; ?>?</span>
+                        </label>
+                        <input type="number" 
+                               name="answer" 
+                               id="answerInput" 
+                               autofocus 
+                               required
+                               aria-required="true"
+                               aria-describedby="timer">
+                    </div>
+                    
+                    <input type="hidden" name="correct_answer" value="<?php echo $correct_answer; ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                    
+                    <button type="submit" style="margin-top: 15px;">Submit Answer</button>
+                    <p id="form-instructions" class="auto-submit-notice" role="note">
+                        <span aria-hidden="true">⏱️</span> Auto-submits when timer reaches 0
+                    </p>
+                </fieldset>
             </form>
+            </section>
         <?php endif; ?>
-    </div>
+    </main>
     
     <?php if (!$show_results): ?>
     <script>
@@ -397,15 +500,31 @@ try {
             window.location.href = '?show_results=1';
         }
         
+        // Screen reader announcement helper
+        function announce(message) {
+            const announcer = document.getElementById('sr-announcements');
+            announcer.textContent = '';
+            setTimeout(() => { announcer.textContent = message; }, 100);
+        }
+        
         // Question countdown timer
+        const timerValue = document.getElementById('timerValue');
         countdownInterval = setInterval(() => {
             timeLeft--;
-            timerElement.textContent = `Time: ${timeLeft}s`;
+            timerValue.textContent = timeLeft;
+            
+            // Announce critical time points for screen readers
+            if (timeLeft === 10) {
+                announce('10 seconds remaining');
+            } else if (timeLeft === 5) {
+                announce('5 seconds remaining');
+            }
             
             if (timeLeft <= 0 && !formSubmitted) {
                 formSubmitted = true;
                 clearInterval(countdownInterval);
                 clearInterval(totalTimerInterval);
+                announce('Time is up. Submitting answer.');
                 // Disable input to prevent typing during submission
                 document.getElementById('answerInput').disabled = true;
                 form.submit();
